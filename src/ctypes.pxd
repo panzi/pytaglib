@@ -7,7 +7,6 @@
 #
 # C++ header definitions needed for the pytaglib wrapper
 from libcpp.list cimport list
-from libcpp.utility cimport pair
 from libcpp.string cimport string
 from libcpp.map cimport map
 
@@ -27,11 +26,6 @@ cdef extern from "taglib/tstring.h" namespace "TagLib":
 
 cdef extern from "taglib/tstringlist.h" namespace "TagLib":
     cdef cppclass StringList:
-#        cppclass Iterator:
-#            String operator*()
-#            Iterator operator++()
-#            bint operator==(Iterator)
-#            bint operator!=(Iterator)
         list[String].iterator begin()
         list[String].iterator end()
         void append(String&)
@@ -64,7 +58,3 @@ cdef extern from "taglib/tfile.h" namespace "TagLib":
     
 cdef extern from "taglib/fileref.h" namespace "TagLib::FileRef":
     cdef File* create(char* fn) except +
-    
-ctypedef map[String,StringList].iterator mapiter
-
-ctypedef list[String].iterator listiter # no idea why StringList.Iterator does not work here

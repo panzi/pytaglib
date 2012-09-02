@@ -7,7 +7,7 @@
 from __future__ import print_function, unicode_literals
 cimport ctypes, cython
 from libcpp.string cimport string
-from cython.operator cimport dereference as deref, preincrement as inc
+from libcpp.pair cimport pair
 
 cdef object tounicode(ctypes.String s):
     """Convert a TagLib::String object to unicode python (str in python3, uncode python2) string."""
@@ -65,28 +65,19 @@ cdef class File:
         This method is not accessible from Python, and is called only once, immediately after
         object creation."""
         cdef ctypes.PropertyMap _tags = self._f.properties()
-        cdef ctypes.mapiter it = _tags.begin()
-        cdef ctypes.StringList values
-        cdef ctypes.listiter lit
-        cdef ctypes.String s
-        cdef char* cstr
-        cdef bytes bstr
-        while it != _tags.end(): # iterate through the keys of the PropertyMap
-            s = deref(it).first # for some reason, <ctypes.pair[...]>deref(it) does not work (bug in Cython?)
-            tag = tounicode(s)
+        cdef ctypes.StringList values, unsupported
+        cdef ctypes.String s, value
+        cdef pair[ctypes.String,ctypes.StringList] mapIter
+        for mapIter in _tags:
+            tag = tounicode(mapIter.first)
+            values = mapIter.second
             self.tags[tag] = []
-            values = deref(it).second
-            lit = values.begin()
-            while lit != values.end():
-                self.tags[tag].append(tounicode(<ctypes.String>deref(lit)))
-                inc(lit)
-            inc(it)
+            for value in values:
+                self.tags[tag].append(tounicode(value))
             
-        lit = _tags.unsupportedData().begin()
-        while lit != _tags.unsupportedData().end():
-            s = deref(lit)
+        unsupported = _tags.unsupportedData()
+        for s in unsupported:	
             self.unsupported.append(tounicode(s))
-            inc(lit)
     
     def save(self):
         """Store the tags currently hold in the *tags* attribute into the file. Returns a boolean
@@ -95,15 +86,14 @@ cdef class File:
             raise OSError('Unable to save tags: file "{0}" is read-only'.format(self.path))
         cdef ctypes.PropertyMap _tagdict
         cdef ctypes.String s1, s2
-        cdef ctypes.Type typ = ctypes.UTF8
         for key, values in self.tags.items():
             x = key.upper().encode() # needed to satisfy Cython; since the String() constructor copies the data, no memory problems should arise here
-            s1 = ctypes.String(x,typ)
+            s1 = ctypes.String(x, ctypes.UTF8)
             if isinstance(values, str):
                 values = [ values ]
             for value in values:
                 x = value.encode('utf-8')
-                s2 = ctypes.String(x, typ)
+                s2 = ctypes.String(x, ctypes.UTF8)
                 _tagdict[s1].append(s2)
         cdef ctypes.PropertyMap remaining = self._f.setProperties(_tagdict)
         print(remaining.size())
@@ -113,10 +103,9 @@ cdef class File:
         """This is a direct binding for the corresponding TagLib method."""
         cdef ctypes.StringList _props
         cdef ctypes.String s
-        cdef ctypes.Type typ = ctypes.UTF8
         for value in properties:
             x = value.encode('utf-8')
-            s = ctypes.String(x, typ)
+            s = ctypes.String(x, ctypes.UTF8)
             _props.append(s)
         self._f.removeUnsupportedProperties(_props)
         
